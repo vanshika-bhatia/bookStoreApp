@@ -1,0 +1,52 @@
+import { NextRequest, NextResponse } from 'next/server';
+import {
+  OAUTH_NEXT_COOKIE,
+  OAUTH_PROVIDER_COOKIE,
+  OAUTH_STATE_COOKIE,
+  buildAuthorizeUrl,
+  createState,
+  isOAuthProvider,
+  isProviderConfigured,
+} from '@/lib/oauth';
+import { getFrontendOrigin, safeNextPath } from '@/lib/appUrls';
+
+export const dynamic = 'force-dynamic';
+
+const COOKIE_MAX_AGE = 10 * 60;
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { provider: string } }
+) {
+  const provider = params.provider;
+
+  const frontend = getFrontendOrigin();
+
+  if (!isOAuthProvider(provider)) {
+    return NextResponse.redirect(new URL('/login?socialError=unsupported_provider', frontend));
+  }
+
+  if (!isProviderConfigured(provider)) {
+    return NextResponse.redirect(
+      new URL(`/login?socialError=${provider}_not_configured`, frontend)
+    );
+  }
+
+  const state = createState();
+  const nextPath = safeNextPath(request.nextUrl.searchParams.get('next'));
+  const response = NextResponse.redirect(buildAuthorizeUrl(provider, request, state));
+
+  const cookieOptions = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax' as const,
+    path: '/',
+    maxAge: COOKIE_MAX_AGE,
+  };
+
+  response.cookies.set(OAUTH_STATE_COOKIE, state, cookieOptions);
+  response.cookies.set(OAUTH_PROVIDER_COOKIE, provider, cookieOptions);
+  response.cookies.set(OAUTH_NEXT_COOKIE, nextPath, cookieOptions);
+
+  return response;
+}
