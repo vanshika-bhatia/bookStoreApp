@@ -1,4 +1,4 @@
-# BookStore — split Next.js apps
+# BookStore — Next.js apps
 
 The store is two independent Next.js 14 applications:
 
